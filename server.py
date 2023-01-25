@@ -28,7 +28,7 @@ def handle_client(conn, addr):
     while connected:
         msg_len = conn.recv(8)
         if msg_len:
-            length = msg_len.decode('utf-8')
+            length = int(msg_len.decode('utf-8'))
         
         msg = b''
         while length > 0:
