@@ -6,11 +6,9 @@ Created on Sat Dec 10 02:39:56 2022
 """
 
 import socket
-import struct
 import io
 import numpy as np
 from PIL import Image
-import cv2
 import threading
 
 
