@@ -1,6 +1,5 @@
 import numpy as np
 import io
-import uasyncio as asyncio
 import time
 import camera
 import socket
@@ -21,16 +20,6 @@ def connect_to_network(ssid, key):
         print('Something went wrong! Could not connect to network, check SSID and Key.')
     print(sta_if.ifconfig())
 
-#=====================================================================================================
-#Code temporarily borrowed from http://stupidpythonideas.blogspot.com/2013/05/sockets-are-byte-streams-not-message.html
-
-def send_one_message(client, data):
-    length = len(data)
-    client.sendall(struct.pack('!I', length))
-    client.sendall(data)
-
-#=====================================================================================================
-
 def send_img(host, port):
     client = socket.socket()
     client.connect((host, port))
@@ -46,7 +35,8 @@ def send_img(host, port):
             print('Failed to capture image!\n')
             cap_tries += 1
         try:
-            send_one_message(client, buf)
+            client.sendall(len(buf).encode('utf-8'))
+            client.sendall(buf)
         except:
             print('Failed to send image!\n')
             send_tries += 1
