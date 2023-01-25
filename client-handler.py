@@ -1,11 +1,7 @@
-import numpy as np
-import io
 import time
 import camera
 import socket
 import machine
-import sys
-import struct
 
 
 def connect_to_network(ssid, key):
