@@ -31,7 +31,11 @@ def send_img(host, port):
             print('Failed to capture image!\n')
             cap_tries += 1
         try:
-            client.sendall(len(buf).encode('utf-8'))
+            length = len(buf)
+            len_msg = str(length).encode('utf-8')
+            len_msg += b' ' * (8 - len(len_msg))
+            
+            client.sendall(len_msg)
             client.sendall(buf)
         except:
             print('Failed to send image!\n')
