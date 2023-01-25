@@ -24,30 +24,22 @@ def cvt_data_to_img(data):
     img = np.load(load_img, allow_pickle=True)
     return img
    
-#=====================================================================================================
-#Code borrowed from http://stupidpythonideas.blogspot.com/2013/05/sockets-are-byte-streams-not-message.html
-
-def recv_one_message(conn):
-    lengthbuf = recvall(conn, 4)
-    length, = struct.unpack('!I', lengthbuf)
-    return recvall(conn, length)
-
-def recvall(conn, count):
-    buf = b''
-    while count:
-        newbuf = conn.recv(count)
-        if not newbuf: return None
-        buf += newbuf
-        count -= len(newbuf)
-    return buf
-
-#=====================================================================================================
 
 def handle_client(conn, addr):
     connected = True
     while connected:
-        bytes = recv_one_message(conn) 
-        img_jpeg = Image.open(io.BytesIO(bytes))
+        msg_len = conn.recv(8)
+        if msg_len:
+            length = msg_len.decode('utf-8')
+        
+        msg = b''
+        while length > 0:
+            temp = conn.recv()
+            if temp:
+               msg += temp
+            length -= len(temp)   
+                
+        img_jpeg = Image.open(io.BytesIO(msg))
         img_np = np.array(img_jpeg)
         
         if bytes == DISCONNECT:
