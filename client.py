@@ -1,7 +1,12 @@
+import numpy as np
+import io
+import uasyncio as asyncio
 import time
 import camera
 import socket
 import machine
+import sys
+import struct
 
 
 def connect_to_network(ssid, key):
@@ -16,16 +21,26 @@ def connect_to_network(ssid, key):
         print('Something went wrong! Could not connect to network, check SSID and Key.')
     print(sta_if.ifconfig())
 
+#=====================================================================================================
+#Code temporarily borrowed from http://stupidpythonideas.blogspot.com/2013/05/sockets-are-byte-streams-not-message.html
+
+def send_one_message(client, data):
+    length = len(data)
+    client.sendall(struct.pack('!I', length))
+    client.sendall(data)
+
+#=====================================================================================================
+
 def send_img(host, port):
     client = socket.socket()
     client.connect((host, port))
-    
+    print('Connected to server!\n')
     send_tries = 0
     cap_tries = 0
     
     while send_tries < 10 and cap_tries < 5:
         try:
-            time.sleep(0.1)
+            time.sleep(0.05)
             buf = camera.capture()
         except:
             print('Failed to capture image!\n')
@@ -35,6 +50,7 @@ def send_img(host, port):
             len_msg = str(length).encode('utf-8')
             len_msg += b' ' * (8 - len(len_msg))
             
+            print('Sending image\n')
             client.sendall(len_msg)
             client.sendall(buf)
         except:
@@ -60,7 +76,7 @@ def comm_with_server(host, port, ssid, key):
             camera.deinit()
             time.sleep(1)
             
-            camera.init(0, format=camera.JPEG, quality=30)
+            camera.init(0, format=camera.JPEG, quality=10)
             camera.speffect(camera.EFFECT_BW)
             time.sleep(2)
             
