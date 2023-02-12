@@ -99,8 +99,8 @@ def comm_with_server(host, port, ssid, key):
 
 if __name__ == '__main__':
     
-    SSID = 'SBG6700AC-BF335'
-    KEY = '629748632e'
+    SSID = ''
+    KEY = ''
     
     HOST = '192.168.0.17'
     PORT = 10000
