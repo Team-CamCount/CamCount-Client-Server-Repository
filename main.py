@@ -24,8 +24,8 @@ HEIGHT = 160
 WIDTH = 160
 
 #Network SSID and password
-SSID = ''
-KEY = ''
+SSID = 'SBG6700AC-BF335'
+KEY = '629748632e'
 
 #Server socket info
 HOST = '192.168.0.17'
