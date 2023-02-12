@@ -18,10 +18,11 @@ import socket
 import ujson
 import time
 import camera
-
+import network
+    
 # Camera frame dimensions
-HEIGHT = 160
-WIDTH = 160
+#HEIGHT = 
+#WIDTH = 
 
 #Network SSID and password
 SSID = 'SBG6700AC-BF335'
@@ -30,21 +31,29 @@ KEY = '629748632e'
 #Server socket info
 HOST = '192.168.0.17'
 PORT = 10000
-DISCONNECT = 'BYE BYE!'.encode('utf-8')
+ADDR = (HOST,PORT)
 
 def connect_to_network():
-    import network
     sta_if = network.WLAN(network.STA_IF) #Create network variable
 
     print('Connecting to network...')
     if not sta_if.active():
         sta_if.active(True)
     
-    try:
-        sta_if.connect(SSID, KEY)
-    except:
-        print(f'Something went wrong! {sta_if.status()} error!')
-    print(sta_if.ifconfig())
+    tries = 0
+    
+    while tries < 3:
+        tries += 1
+        try:
+            time.sleep(2)
+            sta_if.connect(SSID, KEY)
+            break
+        except:
+            time.sleep(1)
+            print(f'Something went wrong! {sta_if.status()} error!')
+        print(sta_if.ifconfig())
+    
+    return tries
 
 # Function to find mean of pixels in camera buffer data most efficiently
 def mean(arr, N):
@@ -71,21 +80,30 @@ def state_change():
 
         if firstloop:
             client = socket.socket()
-            client.connect((HOST, PORT))
+            
+            connected = False
+            while not connected:
+                try:
+                    client.connect(ADDR)
+                    connected = True
+                    print(f'Now connected to {HOST}')
+                except:
+                    time.sleep(1)
+                    
             flashLED.value(1) # Turn on flash LED
-        time.sleep(.2) # Brief delay
+        time.sleep(.05) # Brief delay
 
         buf = camera.capture() # Take the picture of current frame and save to buf!
-        time.sleep(.2) # Brief delay
+        #time.sleep(.2) # Brief delay
         
         if firstloop:
             flashLED.value(0) # Turn off flash LED
 
         #print(buf) # debug buffer
 
-        averageColor = mean(buf, (WIDTH*HEIGHT))
+        averageColor = mean(buf, (len(buf)-1))
 
-        #print(averageColor) # debug average color
+        print(averageColor) # debug average color
 
         # Set up variable to save through deep sleep
         rtc = machine.RTC()
@@ -113,9 +131,9 @@ def state_change():
 
 
         print(abs(averageColor - previousAverageColor))
-        if abs(averageColor - previousAverageColor) > 20:
+        if abs(averageColor - previousAverageColor) > 0.5 or firstloop:
             # Flash LED start
-            flashLED.value(1) # Turn on flash LED
+            #flashLED.value(1) # Turn on flash LED
 
             try:
                 length = len(buf)
@@ -131,26 +149,30 @@ def state_change():
             firstloop = False
 
         else:
-            camera.deinit()
-            client.sendall(DISCONNECT)
-            client.close()
-            machine.deepsleep(2000) # Deep sleep 2s
+            while True:
+                print('Trying to disconnect from server...\n')
+                disc_msg = '293293'
+                disc_msg = str(disc_msg).encode('utf-8')
+                client.sendall(disc_msg)
+            
+                msg = client.recv(8)
+                msg = str(msg.decode('utf-8'))
+            
+                if msg == '6565':
+                    print('Disconnecting from server successfully!')
+                    camera.deinit()
+                    client.close()
+                    machine.deepsleep(2000) # Deep sleep 2s
 
 if __name__ == '__main__':
-    camera.init(0, format=camera.GRAYSCALE, framesize=camera.FRAME_QQVGA, fb_location=camera.PSRAM)
-
+    camera.deinit()
+    camera.init(0, format=camera.JPEG)
+    camera.speffect(camera.EFFECT_BW)
     # LED assignments
     redLED = machine.Pin(33,machine.Pin.OUT) # Set up red LED
     flashLED = machine.Pin(4,machine.Pin.OUT) # Set up flash LED
 
-    tries = 0
-
-    while tries < 3:
-        try:
-            connect_to_network()
-        except:
-            tries += 1
-            print(f'Failed on try {tries}, there are {3 - tries} tries left!')
+    tries = connect_to_network()
         
     if tries == 3:
         print('Failed to connect to network! Restarting machine...')
