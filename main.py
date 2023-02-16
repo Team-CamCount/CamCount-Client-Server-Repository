@@ -19,16 +19,19 @@ import ujson
 import time
 import camera
 import network
-    
+from machine import Pin, ADC
+from time import sleep
+
+
 # Camera frame dimensions
 #HEIGHT = 
 #WIDTH = 
 
-#Network SSID and password
+# Network SSID and password
 SSID = 'SBG6700AC-BF335'
 KEY = '629748632e'
 
-#Server socket info
+# Server socket info
 HOST = '192.168.0.17'
 PORT = 10000
 ADDR = (HOST,PORT)
@@ -55,6 +58,25 @@ def connect_to_network():
     
     return tries
 
+def read_batt():
+    	raw_voltage = p15.read()
+	disconnected_batt_error = False
+	shorted_batt_error = False
+	
+	if raw_voltage < 500:
+		disconnected_batt_error = True
+	elif raw_voltage < 6:
+		shorted_batt_error = True
+	
+	battery_percent = (raw_voltage - 500)/3495
+    
+    print('voltage:', raw_voltage)
+	print('battery:', battery_percent) 
+	print('shorted battery status:', shorted_batt_error) 
+	print('disconnected battery status:', disconnected_batt_error) 
+
+    return [raw_voltage, round(battery_percent,2), shorted_batt_error, disconnected_batt_error]
+
 # Function to find mean of pixels in camera buffer data most efficiently
 def mean(arr, N):
     
@@ -75,12 +97,18 @@ def mean(arr, N):
 
 def state_change():
     firstloop = True
+    
+    batt_count = 0
+    
     while True:
         redLED.value(0) # Turn on red LED
 
+
+
         if firstloop:
-            client = socket.socket()
+            batt_info = read_batt()
             
+            client = socket.socket()
             connected = False
             while not connected:
                 try:
@@ -134,7 +162,28 @@ def state_change():
         if abs(averageColor - previousAverageColor) > 0.5 or firstloop:
             # Flash LED start
             #flashLED.value(1) # Turn on flash LED
-
+            
+            # Sending battery info
+            batt_count += 1   
+            if batt_count < 6:
+                try:
+                    print(f'Sending current battery info: {batt_info}...\n')
+                    batt_msg_ind = str('BATTERY').encode('utf-8')
+                    
+                    batt_info_len = len(batt_info)
+                    batt_len_msg = str(batt_info_len).encode('utf-8')
+                    batt_len_msg += b' ' * (8 - len(len_msg))
+                    
+                    batt_msg = batt_info.encode('utf-8')
+                    
+                    client.sendall(batt_msg_ind)
+                    client.sendall(batt_len_msg)
+                    client.sendall(batt_msg)
+                    batt_count = 0
+                except:
+                    print('Failed to send battery info!\n')
+                
+            # Sending an image
             try:
                 length = len(buf)
                 len_msg = str(length).encode('utf-8')
@@ -151,14 +200,13 @@ def state_change():
         else:
             while True:
                 print('Trying to disconnect from server...\n')
-                disc_msg = '293293'
-                disc_msg = str(disc_msg).encode('utf-8')
+                disc_msg = str('BYEBYE').encode('utf-8') #Special disconnect message to end session
                 client.sendall(disc_msg)
             
-                msg = client.recv(8)
+                msg = client.recv(8) #Obtaining the ok from the server to disconnect
                 msg = str(msg.decode('utf-8'))
             
-                if msg == '6565':
+                if msg == 'OKOK': 
                     print('Disconnecting from server successfully!')
                     camera.deinit()
                     client.close()
@@ -168,7 +216,10 @@ if __name__ == '__main__':
     camera.deinit()
     camera.init(0, format=camera.JPEG)
     camera.speffect(camera.EFFECT_BW)
-    # LED assignments
+    
+    #Pin initializations
+    p15 = machine.ADC(machine.Pin(15)) #Will need to be changed depending on available pins 
+    p15.atten(machine.ADC.ATTN_11DB) #Range of 3.3V    
     redLED = machine.Pin(33,machine.Pin.OUT) # Set up red LED
     flashLED = machine.Pin(4,machine.Pin.OUT) # Set up flash LED
 
