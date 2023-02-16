@@ -78,6 +78,9 @@ def handle_client(conn, addr):
         img = Image.open(io.BytesIO(img_msg))
         img_np = np.array(img)
         
+        #DO DETECTION HERE
+        #SEND FLOW DATA TO FIREBASE HERE
+        
         frame_num += 1 
         #detect(source=img_jpeg)
         cv2.imwrite(f'C:/Users/nikit/Desktop/ESP32-Images/IMG{frame_num}.jpg', img_np)
