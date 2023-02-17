@@ -60,20 +60,20 @@ def connect_to_network():
 
 def read_batt():
     raw_voltage = p15.read()
-	disconnected_batt_error = False
-	shorted_batt_error = False
+    disconnected_batt_error = False
+    shorted_batt_error = False
 	
-	if raw_voltage < 500:
-		disconnected_batt_error = True
-	elif raw_voltage < 6:
-		shorted_batt_error = True
+    if raw_voltage < 500:
+        disconnected_batt_error = True
+    elif raw_voltage < 6:
+        shorted_batt_error = True
 	
-	battery_percent = (raw_voltage - 500)/3495
+    battery_percent = (raw_voltage - 500)/3495
     
     print('voltage:', raw_voltage)
-	print('battery:', battery_percent) 
-	print('shorted battery status:', shorted_batt_error) 
-	print('disconnected battery status:', disconnected_batt_error) 
+    print('battery:', battery_percent) 
+    print('shorted battery status:', shorted_batt_error) 
+    print('disconnected battery status:', disconnected_batt_error) 
 
     return [raw_voltage, round(battery_percent,2), shorted_batt_error, disconnected_batt_error]
 
