@@ -59,7 +59,7 @@ def connect_to_network():
     return tries
 
 def read_batt():
-    	raw_voltage = p15.read()
+    raw_voltage = p15.read()
 	disconnected_batt_error = False
 	shorted_batt_error = False
 	
