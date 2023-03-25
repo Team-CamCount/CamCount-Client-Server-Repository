@@ -11,11 +11,12 @@ import numpy as np
 from PIL import Image
 import threading
 import time
+import ujson
 from math import floor
 import firebase_admin as fa
 from firebase_admin import credentials 
 from firebase_admin import db
-
+import multiprocessing as mp
 
 
 from pathlib import Path
@@ -26,7 +27,7 @@ HOST = socket.gethostbyname(socket.gethostname())
 PORT = 10000
 ADDR = (HOST, PORT)
 DISCONNECT = str('BYEBYE').encode('utf-8')
-BATTERY = str('BATTERY').encode('utf-8')
+BATTERY = str('BATTERY!').encode('utf-8')
 
 
 def cvt_data_to_img(data):
@@ -48,13 +49,29 @@ def handle_client(conn, addr):
     print(f'New connection established with {addr}!')
     frame_num = 0
     
+    cred = credentials.Certificate('firebase_sdk.json')
+    fa.initialize_app(cred, {
+        'databaseURL': 'https://group-11-fall2022-spring2023-default-rtdb.firebaseio.com/'
+    })
+    
     id_msg = conn.recv(8)
     if id_msg:
         cam_id = id_msg.decode('utf-8')
         
-    print(f'The camera ID is {cam_id}!')
+    id_ok = 'OKOK'
+    id_ok = str(id_ok).encode('utf-8')
+    conn.sendall(id_ok)
         
+    print(f'The camera ID is {cam_id}!')
+    
     ref = db.reference(f'root/cameras/{cam_id}/')
+        
+    ref.update({
+        'association': 'Florida Alantic University',
+        'count': 0,
+        'location': 'Library - Main Entrance',
+        'sleeping': False,
+    });
     
     while True:
         init_msg = conn.recv(8)
@@ -65,12 +82,16 @@ def handle_client(conn, addr):
                 batt_info_len = int(batt_len_msg.decode('utf-8'))
                 
                 batt_info = handle_msg(conn, batt_info_len)
+                batt_info = ujson.loads(batt_info)
+                batt_info = batt_info['batt']
+                print(batt_info)
                 batt_percent = floor(batt_info[1]*100)
                 short_err = 'YES' if batt_info[2] else 'NO'
                 disc_err = 'YES' if batt_info[3] else 'NO'
                 
                 print(f'ESP32-CAM with address {addr} battery info: Voltage = {batt_info[0]}mV, Battery% = {batt_percent}%, Short Error = {short_err}, Battery Disconnect = {disc_err}')
                 print('Sending battery information to Firebase...')
+                
                 
                 ref.update({
                     'battery_disconnected': bool(batt_info[2]),
@@ -79,6 +100,7 @@ def handle_client(conn, addr):
                     });
                 
                 print('Battery info sent to Firebase!')
+                
                 continue
             
             elif init_msg == DISCONNECT:
@@ -86,6 +108,10 @@ def handle_client(conn, addr):
                 msg_ok = str(msg_ok).encode('utf-8')
                 conn.sendall(msg_ok)
                 
+                ref.update({
+                    'sleeping': True,
+                });
+
                 print(f'Client {addr} disconnected!')
                 break
             
@@ -109,18 +135,16 @@ def handle_client(conn, addr):
     return
         
 def server_main():
-    cred = credentials.Certificate('firebase_sdk.json')
-    fa.initialize_app(cred, {
-        'databaseURL': 'https://group-11-fall2022-spring2023-default-rtdb.firebaseio.com/'
-    })
     
+
+
     server.listen()
      
     while True:
         conn, addr = server.accept()
 
-        thread = threading.Thread(target=handle_client, args = [conn, addr])
-        thread.start()
+        process = mp.Process(target=handle_client, args = [conn, addr])
+        process.start()
 
     
 if __name__ == '__main__':    
@@ -128,5 +152,5 @@ if __name__ == '__main__':
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
     
-    print('Running server!')
+    print(f'Running server with address {ADDR}!')
     server_main() 

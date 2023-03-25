@@ -19,9 +19,8 @@ import ujson
 import time
 import camera
 import network
-from machine import Pin, ADC
 from time import sleep
-
+import math
 
 # Camera frame dimensions
 #HEIGHT = 
@@ -59,7 +58,8 @@ def connect_to_network():
     return tries
 
 def read_batt():
-    raw_voltage = p15.read()
+    raw_voltage = p32.read()
+    #raw_voltage = 10 * math.log(3495/(raw_voltage+1))
     disconnected_batt_error = False
     shorted_batt_error = False
 	
@@ -68,14 +68,15 @@ def read_batt():
     elif raw_voltage < 6:
         shorted_batt_error = True
 	
-    battery_percent = (raw_voltage - 500)/3495
+    battery_percent = (raw_voltage)/4095
     
     print('voltage:', raw_voltage)
     print('battery:', battery_percent) 
     print('shorted battery status:', shorted_batt_error) 
     print('disconnected battery status:', disconnected_batt_error) 
 
-    return [raw_voltage, round(battery_percent,2), shorted_batt_error, disconnected_batt_error]
+    return [raw_voltage, battery_percent, shorted_batt_error, disconnected_batt_error]
+
 
 # Function to find mean of pixels in camera buffer data most efficiently
 def mean(arr, N):
@@ -98,12 +99,12 @@ def mean(arr, N):
 def state_change():
     firstloop = True
     
-    batt_count = 0
+    batt_count = 5
+    
+    cam_id = 'cam1'
     
     while True:
         redLED.value(0) # Turn on red LED
-
-
 
         if firstloop:
             batt_info = read_batt()
@@ -118,12 +119,20 @@ def state_change():
                 except:
                     time.sleep(1)
                     
+            cam_id = str(cam_id).encode('utf-8')
+            client.sendall(cam_id)
+            
+            id_rec = client.recv(8)
+            id_rec = str(id_rec.decode('utf-8'))
+            
+            if id_rec == 'IDOK':
+                print('Server received ID!')
+                    
             flashLED.value(1) # Turn on flash LED
         time.sleep(.05) # Brief delay
-
-        buf = camera.capture() # Take the picture of current frame and save to buf!
+        buf = camera.capture()
+         # Take the picture of current frame and save to buf!
         #time.sleep(.2) # Brief delay
-        
         if firstloop:
             flashLED.value(0) # Turn off flash LED
 
@@ -165,35 +174,37 @@ def state_change():
             
             # Sending battery info
             batt_count += 1   
-            if batt_count < 6:
-                try:
-                    print(f'Sending current battery info: {batt_info}...\n')
-                    batt_msg_ind = str('BATTERY').encode('utf-8')
-                    
-                    batt_info_len = len(batt_info)
-                    batt_len_msg = str(batt_info_len).encode('utf-8')
-                    batt_len_msg += b' ' * (8 - len(len_msg))
-                    
-                    batt_msg = batt_info.encode('utf-8')
-                    
-                    client.sendall(batt_msg_ind)
-                    client.sendall(batt_len_msg)
-                    client.sendall(batt_msg)
-                    batt_count = 0
-                except:
-                    print('Failed to send battery info!\n')
+            if batt_count > 5:
+
+                print(f'Sending current battery info: {batt_info}...\n')
+                batt_msg_ind = str('BATTERY!').encode('utf-8')
+                client.sendall(batt_msg_ind)
                 
-            # Sending an image
-            try:
-                length = len(buf)
-                len_msg = str(length).encode('utf-8')
-                len_msg += b' ' * (8 - len(len_msg))
-            
-                print('Sending image\n')
-                client.sendall(len_msg)
-                client.sendall(buf)
-            except:
-                print('Failed to send image!\n')
+                packed_msg = {'batt': batt_info}
+                packed_msg = ujson.dumps(packed_msg)
+
+                packed_msg_len = len(packed_msg)
+                packed_msg_len = str(packed_msg_len).encode('utf-8')
+                packed_msg_len += b' ' * (8 - len(packed_msg_len))
+                    
+
+                client.sendall(packed_msg_len)
+                client.sendall(packed_msg)
+                batt_count = 0
+                #except:
+                 #   print('Failed to send battery info!\n')
+                
+            else:# Sending an image
+                try:
+                    length = len(buf)
+                    len_msg = str(length).encode('utf-8')
+                    len_msg += b' ' * (8 - len(len_msg))
+                
+                    print('Sending image\n')
+                    client.sendall(len_msg)
+                    client.sendall(buf)
+                except:
+                    print('Failed to send image!\n')
             
             firstloop = False
 
@@ -213,13 +224,15 @@ def state_change():
                     machine.deepsleep(2000) # Deep sleep 2s
 
 if __name__ == '__main__':
+    #Initializing the camera
     camera.deinit()
     camera.init(0, format=camera.JPEG)
     camera.speffect(camera.EFFECT_BW)
     
+    
     #Pin initializations
-    p15 = machine.ADC(machine.Pin(15)) #Will need to be changed depending on available pins 
-    p15.atten(machine.ADC.ATTN_11DB) #Range of 3.3V    
+    p32 = machine.ADC(machine.Pin(32)) #Will need to be changed depending on available pins 
+    #p32.atten(machine.ADC.ATTN_11DB) #Range of 3.3V
     redLED = machine.Pin(33,machine.Pin.OUT) # Set up red LED
     flashLED = machine.Pin(4,machine.Pin.OUT) # Set up flash LED
 
